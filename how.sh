@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define request parameters
-ENDPOINT='https://api.openai.com/v1/chat/completions'
+ENDPOINT='https://api.openai.com/v1/responses'
 MODEL="${HOW_TO_MODEL:-gpt-6-luna}"
 
 # Check if jq is installed
@@ -15,7 +15,6 @@ OS=$(uname)
 
 # Combine all command-line arguments into a single string
 QUESTION="$@"
-QUESTION="${QUESTION//\"/\\\"}" # Escape double quotes
 
 # Set the prefix, allowing it to be overridden by HOW_TO_PREFIX environment variable
 PREFIX="${HOW_TO_PREFIX:-Reply using one-line bash command without code block. Question: How}"
@@ -24,16 +23,27 @@ PREFIX="${HOW_TO_PREFIX:-Reply using one-line bash command without code block. Q
 PROMPT="$PREFIX $QUESTION? in $OS"
 
 # Prepare the JSON payload for the request
-DATA="{\"model\":\"$MODEL\",\"temperature\":0,\"messages\":[{\"role\":\"user\",\"content\":\"$PROMPT\"}]}"
+DATA=$(jq -n --arg model "$MODEL" --arg prompt "$PROMPT" \
+  '{model: $model, input: $prompt}')
 
 # Send the request to OpenAI API
-RESPONSE=$(curl --silent --location --insecure --request POST "$ENDPOINT" \
+RESULT=$(curl --silent --show-error --location --insecure --request POST "$ENDPOINT" \
   --header "Authorization: Bearer $OPENAI_API_KEY" \
   --header 'Content-Type: application/json' \
-  --data-raw "$DATA")
+  --data-raw "$DATA" \
+  --write-out $'\n%{http_code}') || { echo "OpenAI API request failed." >&2; exit 1; }
 
-# Extract the message content from the response
-MESSAGE_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+HTTP_STATUS=${RESULT##*$'\n'}
+RESPONSE=${RESULT%$'\n'*}
+
+if [[ "$HTTP_STATUS" != 2?? ]]; then
+  ERROR_MESSAGE=$(echo "$RESPONSE" | jq -r '.error.message // empty' 2>/dev/null)
+  echo "OpenAI API error ($HTTP_STATUS): ${ERROR_MESSAGE:-Unexpected response}" >&2
+  exit 1
+fi
+
+# Extract text from the Responses API output
+MESSAGE_CONTENT=$(echo "$RESPONSE" | jq -r '[.output[]?.content[]? | select(.type == "output_text") | .text] | join("")')
 
 # Print the command to terminal
 echo "$MESSAGE_CONTENT"
