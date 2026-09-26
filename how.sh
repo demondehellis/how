@@ -2,7 +2,7 @@
 
 # Define request parameters
 ENDPOINT='https://api.openai.com/v1/chat/completions'
-MODEL="${HOW_TO_MODEL:-gpt-4o-mini}" # Default to gpt-4o-mini
+MODEL="${HOW_TO_MODEL:-gpt-6-luna}"
 
 # Check if jq is installed
 command -v jq &> /dev/null || { echo "Please install jq to use this script."; exit 1; }
