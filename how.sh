@@ -13,14 +13,22 @@ command -v jq &> /dev/null || { echo "Please install jq to use this script."; ex
 # Get the current OS
 OS=$(uname)
 
+# Get the current shell (prefer the shell that invoked this script, since the
+# script itself always runs under bash; fall back to the login shell)
+CURRENT_SHELL=$(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||; s|^-||')
+case "$CURRENT_SHELL" in
+  bash|zsh|fish|sh|dash|ksh|mksh|tcsh|csh|nu|elvish|xonsh) ;;
+  *) CURRENT_SHELL=$(basename "${SHELL:-unknown}") ;;
+esac
+
 # Combine all command-line arguments into a single string
 QUESTION="$@"
 
 # Set the prefix, allowing it to be overridden by HOW_TO_PREFIX environment variable
 PREFIX="${HOW_TO_PREFIX:-Reply using one-line bash command without code block. Question: How}"
 
-# Prepare the full prompt with OS version included
-PROMPT="$PREFIX $QUESTION? in $OS"
+# Prepare the full prompt with shell and OS included
+PROMPT="$PREFIX $QUESTION? In $CURRENT_SHELL, $OS."
 
 # Prepare the JSON payload for the request
 DATA=$(jq -n --arg model "$MODEL" --arg prompt "$PROMPT" \
